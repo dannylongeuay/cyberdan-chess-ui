@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-board-light: #AABD8C;
+  --color-board-dark: #6B8F4A;
+  --color-highlight-selected: rgba(255, 255, 0, 0.4);
+  --color-highlight-lastmove: rgba(255, 255, 0, 0.2);
+  --color-highlight-check: rgba(255, 0, 0, 0.5);
+  --color-legal-move: rgba(0, 0, 0, 0.25);
+}
+
+body {
+  margin: 0;
+}
