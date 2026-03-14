@@ -1,6 +1,21 @@
-# Ignore build outputs from performing a nix-build or `nix build` command
+# Nix
 result
 result-*
-
-# Ignore automatically generated direnv output
 .direnv
+
+# Dependencies
+node_modules
+
+# Build
+dist
+
+# Environment
+.env.local
+.env.*.local
+
+# Editor
+*.swp
+*.swo
+*~
+.idea
+.vscode
