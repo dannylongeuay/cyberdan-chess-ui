@@ -40,13 +40,10 @@ function App() {
         onDrop={handleDrop}
       />
 
-      {error && (
-        <p className="text-red-400 text-sm mt-2">{error}</p>
-      )}
-
-      {isLoading && (
-        <p className="text-gray-400 text-sm mt-1">Thinking...</p>
-      )}
+      <div className="h-6 flex items-center justify-center">
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {isLoading && <p className="text-gray-400 text-sm">Thinking...</p>}
+      </div>
 
       <NewGameButton onClick={newGame} />
 
