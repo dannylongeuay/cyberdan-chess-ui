@@ -19,3 +19,6 @@ export type GameStatus =
   | 'insufficient_material';
 
 export type SideToMove = 'white' | 'black';
+
+export type GameMode = 'pvp' | 'pvc';
+export type HumanColor = 'white' | 'black';

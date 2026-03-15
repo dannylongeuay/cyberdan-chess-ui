@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
-import type { SquareCoord, GameStatus, SideToMove, Board, PieceColor, PromotionPiece } from '../types/chess';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import type { SquareCoord, GameStatus, SideToMove, Board, PieceColor, PromotionPiece, GameMode, HumanColor } from '../types/chess';
 import type { ValidMove, ValidMovesResponse } from '../api/types';
 import { api } from '../api/client';
 import { INITIAL_FEN, INITIAL_VALID_MOVES, parseFenBoard, fenSideToMove, pieceColor, findKingSquare } from '../utils/fen';
@@ -21,6 +21,11 @@ interface ChessGameState {
   handleDrop: (from: SquareCoord, to: SquareCoord) => void;
   handlePromotion: (piece: PromotionPiece) => void;
   newGame: () => void;
+  gameMode: GameMode;
+  humanColor: HumanColor;
+  isComputerThinking: boolean;
+  setGameMode: (mode: GameMode) => void;
+  setHumanColor: (color: HumanColor) => void;
 }
 
 export function useChessGame(): ChessGameState {
@@ -35,12 +40,19 @@ export function useChessGame(): ChessGameState {
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gameMode, setGameModeState] = useState<GameMode>('pvp');
+  const [humanColor, setHumanColorState] = useState<HumanColor>('white');
+  const [isComputerThinking, setIsComputerThinking] = useState(false);
 
   // Cache valid moves per FEN
   const movesCache = useRef<{ fen: string; response: ValidMovesResponse } | null>(
     { fen: INITIAL_FEN, response: INITIAL_VALID_MOVES }
   );
   const [allMoves, setAllMoves] = useState<ValidMove[]>(INITIAL_VALID_MOVES.moves);
+
+  const computerColor: SideToMove | null = gameMode === 'pvc'
+    ? (humanColor === 'white' ? 'black' : 'white')
+    : null;
 
   const board = useMemo(() => parseFenBoard(fen), [fen]);
   const activeColor: PieceColor = fenSideToMove(fen) === 'white' ? 'w' : 'b';
@@ -108,6 +120,7 @@ export function useChessGame(): ChessGameState {
   }, [fen, submitMove]);
 
   const selectSquare = useCallback((coord: SquareCoord) => {
+    if (isComputerThinking) return;
     if (gameStatus !== 'ongoing') return;
 
     const piece = board[coord.row][coord.col];
@@ -130,9 +143,10 @@ export function useChessGame(): ChessGameState {
 
     // Click on empty square or opponent piece (not a legal move) — deselect
     setSelectedSquare(null);
-  }, [board, activeColor, selectedSquare, legalMovesForSquare, gameStatus, tryMove]);
+  }, [board, activeColor, selectedSquare, legalMovesForSquare, gameStatus, tryMove, isComputerThinking]);
 
   const handleDrop = useCallback((from: SquareCoord, to: SquareCoord) => {
+    if (isComputerThinking) return;
     if (gameStatus !== 'ongoing') return;
     // The moves should already be cached from pointerdown
     if (movesCache.current?.fen === fen) {
@@ -140,7 +154,7 @@ export function useChessGame(): ChessGameState {
       const moves = movesCache.current.response.moves.filter((m) => m.from === fromAlg);
       tryMove(from, to, moves);
     }
-  }, [gameStatus, fen, tryMove]);
+  }, [isComputerThinking, gameStatus, fen, tryMove]);
 
   const handlePromotion = useCallback((piece: PromotionPiece) => {
     if (!pendingPromotion) return;
@@ -160,9 +174,41 @@ export function useChessGame(): ChessGameState {
     setCheckSquare(null);
     setPendingPromotion(null);
     setError(null);
+    setIsComputerThinking(false);
     movesCache.current = { fen: INITIAL_FEN, response: INITIAL_VALID_MOVES };
     setAllMoves(INITIAL_VALID_MOVES.moves);
   }, []);
+
+  const setGameMode = useCallback((mode: GameMode) => {
+    setGameModeState(mode);
+    newGame();
+  }, [newGame]);
+
+  const setHumanColor = useCallback((color: HumanColor) => {
+    setHumanColorState(color);
+    newGame();
+  }, [newGame]);
+
+  // Computer auto-move effect
+  useEffect(() => {
+    if (gameMode !== 'pvc') return;
+    if (gameStatus !== 'ongoing') return;
+    if (sideToMove !== computerColor) return;
+    if (allMoves.length === 0) return;
+
+    setIsComputerThinking(true);
+    const timeout = setTimeout(() => {
+      const move = allMoves[Math.floor(Math.random() * allMoves.length)];
+      submitMove(fen, move.uci, move.from, move.to).finally(() => {
+        setIsComputerThinking(false);
+      });
+    }, 750);
+
+    return () => {
+      clearTimeout(timeout);
+      setIsComputerThinking(false);
+    };
+  }, [gameMode, gameStatus, sideToMove, computerColor, allMoves, fen, submitMove]);
 
   return {
     board,
@@ -180,5 +226,10 @@ export function useChessGame(): ChessGameState {
     handleDrop,
     handlePromotion,
     newGame,
+    gameMode,
+    humanColor,
+    isComputerThinking,
+    setGameMode,
+    setHumanColor,
   };
 }

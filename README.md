@@ -11,6 +11,9 @@ A chess web application built with React, TypeScript, and TailwindCSS. Communica
 
 ## Features
 
+- **Human vs Human** (hotseat) and **Human vs Computer** game modes
+- Color selection — play as White or Black against the computer
+- Computer opponent plays random legal moves with a short delay
 - Click and drag-and-drop piece movement
 - Instant legal move display — valid moves are pre-populated from `/submitmove` responses, so piece selection requires no additional API call
 - Legal move indicators (dots for empty squares, rings for captures)
@@ -82,6 +85,7 @@ src/
 │   ├── Board.tsx          # Chessboard grid with drag-and-drop
 │   ├── Square.tsx         # Individual square rendering
 │   ├── Piece.tsx          # Piece image component
+│   ├── GameControls.tsx   # Mode toggle and color selector
 │   ├── GameInfo.tsx       # Turn indicator and game status
 │   ├── PromotionDialog.tsx# Pawn promotion piece picker
 │   └── NewGameButton.tsx  # Reset game button

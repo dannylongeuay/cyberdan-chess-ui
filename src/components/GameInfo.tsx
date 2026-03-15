@@ -3,6 +3,7 @@ import type { GameStatus, SideToMove } from '../types/chess';
 interface GameInfoProps {
   sideToMove: SideToMove;
   status: GameStatus;
+  isComputerThinking?: boolean;
 }
 
 function statusMessage(status: GameStatus, sideToMove: SideToMove): string {
@@ -22,15 +23,19 @@ function statusMessage(status: GameStatus, sideToMove: SideToMove): string {
   }
 }
 
-export default function GameInfo({ sideToMove, status }: GameInfoProps) {
+export default function GameInfo({ sideToMove, status, isComputerThinking }: GameInfoProps) {
   const isGameOver = status !== 'ongoing';
   const message = statusMessage(status, sideToMove);
 
   return (
     <div className="text-center py-3">
-      <p className={`text-lg font-semibold ${isGameOver ? 'text-yellow-400' : 'text-gray-200'}`}>
-        {message}
-      </p>
+      {isComputerThinking ? (
+        <p className="text-lg font-semibold text-gray-400">Computer is thinking...</p>
+      ) : (
+        <p className={`text-lg font-semibold ${isGameOver ? 'text-yellow-400' : 'text-gray-200'}`}>
+          {message}
+        </p>
+      )}
     </div>
   );
 }
