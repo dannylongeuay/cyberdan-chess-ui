@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import type { SquareCoord, GameStatus, SideToMove, Board, PieceColor, PromotionPiece } from '../types/chess';
 import type { ValidMove, ValidMovesResponse } from '../api/types';
 import { api } from '../api/client';
@@ -77,6 +77,13 @@ export function useChessGame(): ChessGameState {
     }
   }, []);
 
+  // Pre-fetch valid moves for the starting position on mount
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchMoves(INITIAL_FEN, controller.signal);
+    return () => controller.abort();
+  }, [fetchMoves]);
+
   const submitMove = useCallback(async (currentFen: string, uci: string, from: string, to: string) => {
     setIsLoading(true);
     setError(null);
@@ -92,8 +99,17 @@ export function useChessGame(): ChessGameState {
       setSideToMove(response.side_to_move);
       setSelectedSquare(null);
       setLastMove({ from, to });
-      movesCache.current = null;
-      setAllMoves([]);
+      movesCache.current = {
+        fen: response.fen,
+        response: {
+          fen: response.fen,
+          side_to_move: response.side_to_move,
+          status: response.status,
+          move_count: response.move_count,
+          moves: response.moves,
+        },
+      };
+      setAllMoves(response.moves);
 
       // Detect check/checkmate from the SAN notation returned by the API
       if (response.san.includes('+') || response.san.includes('#')) {
@@ -128,7 +144,7 @@ export function useChessGame(): ChessGameState {
     submitMove(fen, move.uci, move.from, move.to);
   }, [fen, submitMove]);
 
-  const selectSquare = useCallback(async (coord: SquareCoord) => {
+  const selectSquare = useCallback((coord: SquareCoord) => {
     if (gameStatus !== 'ongoing') return;
 
     const piece = board[coord.row][coord.col];
@@ -143,21 +159,15 @@ export function useChessGame(): ChessGameState {
       }
     }
 
-    // Click on own piece — select it
+    // Click on own piece — select it (moves are already pre-populated)
     if (piece && pieceColor(piece) === activeColor) {
-      // Abort any previous in-flight fetch to prevent stale state updates
-      fetchControllerRef.current?.abort();
-      const controller = new AbortController();
-      fetchControllerRef.current = controller;
-
       setSelectedSquare(coord);
-      await fetchMoves(fen, controller.signal);
       return;
     }
 
     // Click on empty square or opponent piece (not a legal move) — deselect
     setSelectedSquare(null);
-  }, [board, activeColor, selectedSquare, legalMovesForSquare, gameStatus, fen, fetchMoves, tryMove]);
+  }, [board, activeColor, selectedSquare, legalMovesForSquare, gameStatus, tryMove]);
 
   const handleDrop = useCallback((from: SquareCoord, to: SquareCoord) => {
     if (gameStatus !== 'ongoing') return;
@@ -191,7 +201,11 @@ export function useChessGame(): ChessGameState {
     setError(null);
     movesCache.current = null;
     setAllMoves([]);
-  }, []);
+
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+    fetchMoves(INITIAL_FEN, controller.signal);
+  }, [fetchMoves]);
 
   return {
     board,

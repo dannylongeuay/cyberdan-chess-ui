@@ -31,4 +31,6 @@ export interface SubmitMoveResponse {
   san: string;
   status: 'ongoing' | 'checkmate' | 'stalemate' | 'fifty_move_rule' | 'insufficient_material';
   side_to_move: 'white' | 'black';
+  move_count: number;
+  moves: ValidMove[];
 }

@@ -12,6 +12,7 @@ A chess web application built with React, TypeScript, and TailwindCSS. Communica
 ## Features
 
 - Click and drag-and-drop piece movement
+- Instant legal move display — valid moves are pre-populated from `/submitmove` responses, so piece selection requires no additional API call
 - Legal move indicators (dots for empty squares, rings for captures)
 - Check, checkmate, and stalemate detection with visual highlighting
 - Pawn promotion dialog
@@ -135,7 +136,7 @@ Returns all legal moves for a given position.
 
 ### `POST /submitmove`
 
-Submits a move and returns the resulting position.
+Submits a move and returns the resulting position along with all legal moves for the next side to move (same shape as `/validmoves`).
 
 **Request:**
 
@@ -150,7 +151,20 @@ Submits a move and returns the resulting position.
   "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
   "san": "e4",
   "status": "ongoing",
-  "side_to_move": "black"
+  "side_to_move": "black",
+  "move_count": 20,
+  "moves": [
+    {
+      "uci": "e7e5",
+      "san": "e5",
+      "from": "e7",
+      "to": "e5",
+      "capture": false,
+      "promotion": null,
+      "castling": false,
+      "check": false
+    }
+  ]
 }
 ```
 
