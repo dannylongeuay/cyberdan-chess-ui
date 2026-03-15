@@ -1,9 +1,10 @@
-import type { GameStatus, SideToMove } from '../types/chess';
+import type { GameStatus, SideToMove, EngineEval } from '../types/chess';
 
 interface GameInfoProps {
   sideToMove: SideToMove;
   status: GameStatus;
   isComputerThinking?: boolean;
+  engineEval?: EngineEval | null;
 }
 
 function statusMessage(status: GameStatus, sideToMove: SideToMove): string {
@@ -23,7 +24,12 @@ function statusMessage(status: GameStatus, sideToMove: SideToMove): string {
   }
 }
 
-export default function GameInfo({ sideToMove, status, isComputerThinking }: GameInfoProps) {
+function formatScore(centipawns: number): string {
+  const pawns = centipawns / 100;
+  return pawns >= 0 ? `+${pawns.toFixed(2)}` : pawns.toFixed(2);
+}
+
+export default function GameInfo({ sideToMove, status, isComputerThinking, engineEval }: GameInfoProps) {
   const isGameOver = status !== 'ongoing';
   const message = statusMessage(status, sideToMove);
 
@@ -34,6 +40,11 @@ export default function GameInfo({ sideToMove, status, isComputerThinking }: Gam
       ) : (
         <p className={`text-lg font-semibold ${isGameOver ? 'text-yellow-400' : 'text-gray-200'}`}>
           {message}
+        </p>
+      )}
+      {engineEval && !isGameOver && (
+        <p className="text-sm text-gray-400 mt-1">
+          Eval: {formatScore(engineEval.score)} | Depth: {engineEval.depth}
         </p>
       )}
     </div>

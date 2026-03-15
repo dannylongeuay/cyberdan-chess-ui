@@ -25,6 +25,7 @@ function App() {
     gameMode,
     humanColor,
     isComputerThinking,
+    engineEval,
     setGameMode,
     setHumanColor,
   } = useChessGame();
@@ -33,7 +34,7 @@ function App() {
     <div className="min-h-dvh bg-gray-900 text-white flex flex-col items-center justify-center p-4 gap-2">
       <h1 className="text-2xl font-bold tracking-tight">Chess</h1>
 
-      <GameInfo sideToMove={sideToMove} status={gameStatus} isComputerThinking={isComputerThinking} />
+      <GameInfo sideToMove={sideToMove} status={gameStatus} isComputerThinking={isComputerThinking} engineEval={engineEval} />
 
       <Board
         board={board}

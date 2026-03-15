@@ -27,10 +27,19 @@ export interface SubmitMoveRequest {
 }
 
 export interface SubmitMoveResponse {
-  fen: string;
+  uci: string;
   san: string;
+  from: string;
+  to: string;
+  fen: string;
   status: 'ongoing' | 'checkmate' | 'stalemate' | 'fifty_move_rule' | 'insufficient_material';
   side_to_move: 'white' | 'black';
   move_count: number;
   moves: ValidMove[];
+}
+
+export interface SubmitBestMoveResponse extends SubmitMoveResponse {
+  depth: number;
+  score: number;
+  nodes: number;
 }

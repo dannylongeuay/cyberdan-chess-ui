@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import type { SquareCoord, GameStatus, SideToMove, Board, PieceColor, PromotionPiece, GameMode, HumanColor } from '../types/chess';
-import type { ValidMove, ValidMovesResponse } from '../api/types';
+import type { SquareCoord, GameStatus, SideToMove, Board, PieceColor, PromotionPiece, GameMode, HumanColor, EngineEval } from '../types/chess';
+import type { ValidMove, ValidMovesResponse, SubmitMoveResponse } from '../api/types';
 import { api } from '../api/client';
 import { INITIAL_FEN, INITIAL_VALID_MOVES, parseFenBoard, fenSideToMove, pieceColor, findKingSquare } from '../utils/fen';
 import { coordToAlgebraic } from '../utils/squares';
@@ -24,6 +24,7 @@ interface ChessGameState {
   gameMode: GameMode;
   humanColor: HumanColor;
   isComputerThinking: boolean;
+  engineEval: EngineEval | null;
   setGameMode: (mode: GameMode) => void;
   setHumanColor: (color: HumanColor) => void;
 }
@@ -43,6 +44,7 @@ export function useChessGame(): ChessGameState {
   const [gameMode, setGameModeState] = useState<GameMode>('pvp');
   const [humanColor, setHumanColorState] = useState<HumanColor>('white');
   const [isComputerThinking, setIsComputerThinking] = useState(false);
+  const [engineEval, setEngineEval] = useState<EngineEval | null>(null);
 
   // Cache valid moves per FEN
   const movesCache = useRef<{ fen: string; response: ValidMovesResponse } | null>(
@@ -63,43 +65,46 @@ export function useChessGame(): ChessGameState {
     return allMoves.filter((m) => m.from === fromAlg);
   }, [selectedSquare, allMoves]);
 
-  const submitMove = useCallback(async (currentFen: string, uci: string, from: string, to: string) => {
+  const applyMoveResponse = useCallback((response: SubmitMoveResponse) => {
+    setFen(response.fen);
+    setGameStatus(response.status);
+    setSideToMove(response.side_to_move);
+    setSelectedSquare(null);
+    setLastMove({ from: response.from, to: response.to });
+    movesCache.current = {
+      fen: response.fen,
+      response: {
+        fen: response.fen,
+        side_to_move: response.side_to_move,
+        status: response.status,
+        move_count: response.move_count,
+        moves: response.moves,
+      },
+    };
+    setAllMoves(response.moves);
+
+    if (response.san.includes('+') || response.san.includes('#')) {
+      const nextBoard = parseFenBoard(response.fen);
+      const kingColor = response.side_to_move === 'white' ? 'w' : 'b';
+      setCheckSquare(findKingSquare(nextBoard, kingColor));
+    } else {
+      setCheckSquare(null);
+    }
+  }, []);
+
+  const submitMove = useCallback(async (currentFen: string, uci: string) => {
     setIsLoading(true);
     setError(null);
 
     try {
       const response = await api.submitMove(currentFen, uci);
-      setFen(response.fen);
-      setGameStatus(response.status);
-      setSideToMove(response.side_to_move);
-      setSelectedSquare(null);
-      setLastMove({ from, to });
-      movesCache.current = {
-        fen: response.fen,
-        response: {
-          fen: response.fen,
-          side_to_move: response.side_to_move,
-          status: response.status,
-          move_count: response.move_count,
-          moves: response.moves,
-        },
-      };
-      setAllMoves(response.moves);
-
-      // Detect check/checkmate from the SAN notation returned by the API
-      if (response.san.includes('+') || response.san.includes('#')) {
-        const nextBoard = parseFenBoard(response.fen);
-        const kingColor = response.side_to_move === 'white' ? 'w' : 'b';
-        setCheckSquare(findKingSquare(nextBoard, kingColor));
-      } else {
-        setCheckSquare(null);
-      }
+      applyMoveResponse(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit move');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [applyMoveResponse]);
 
   const tryMove = useCallback((from: SquareCoord, to: SquareCoord, moves: ValidMove[]) => {
     const fromAlg = coordToAlgebraic(from);
@@ -116,7 +121,7 @@ export function useChessGame(): ChessGameState {
     }
 
     const move = matchingMoves[0];
-    submitMove(fen, move.uci, move.from, move.to);
+    submitMove(fen, move.uci);
   }, [fen, submitMove]);
 
   const selectSquare = useCallback((coord: SquareCoord) => {
@@ -160,7 +165,7 @@ export function useChessGame(): ChessGameState {
     if (!pendingPromotion) return;
     const move = pendingPromotion.moves.find((m) => m.promotion === piece);
     if (move) {
-      submitMove(fen, move.uci, move.from, move.to);
+      submitMove(fen, move.uci);
     }
     setPendingPromotion(null);
   }, [pendingPromotion, fen, submitMove]);
@@ -175,6 +180,7 @@ export function useChessGame(): ChessGameState {
     setPendingPromotion(null);
     setError(null);
     setIsComputerThinking(false);
+    setEngineEval(null);
     movesCache.current = { fen: INITIAL_FEN, response: INITIAL_VALID_MOVES };
     setAllMoves(INITIAL_VALID_MOVES.moves);
   }, []);
@@ -194,21 +200,36 @@ export function useChessGame(): ChessGameState {
     if (gameMode !== 'pvc') return;
     if (gameStatus !== 'ongoing') return;
     if (sideToMove !== computerColor) return;
-    if (allMoves.length === 0) return;
 
+    const abortController = new AbortController();
     setIsComputerThinking(true);
-    const timeout = setTimeout(() => {
-      const move = allMoves[Math.floor(Math.random() * allMoves.length)];
-      submitMove(fen, move.uci, move.from, move.to).finally(() => {
-        setIsComputerThinking(false);
+    setError(null);
+
+    api.submitBestMove(fen, abortController.signal)
+      .then((response) => {
+        if (abortController.signal.aborted) return;
+
+        applyMoveResponse(response);
+
+        // Negate score: engine reports from its own perspective,
+        // but we display from the human's perspective
+        setEngineEval({ depth: response.depth, score: -response.score, nodes: response.nodes });
+      })
+      .catch((err) => {
+        if (abortController.signal.aborted) return;
+        setError(err instanceof Error ? err.message : 'Engine move failed');
+      })
+      .finally(() => {
+        if (!abortController.signal.aborted) {
+          setIsComputerThinking(false);
+        }
       });
-    }, 750);
 
     return () => {
-      clearTimeout(timeout);
+      abortController.abort();
       setIsComputerThinking(false);
     };
-  }, [gameMode, gameStatus, sideToMove, computerColor, allMoves, fen, submitMove]);
+  }, [gameMode, gameStatus, sideToMove, computerColor, fen, applyMoveResponse]);
 
   return {
     board,
@@ -229,6 +250,7 @@ export function useChessGame(): ChessGameState {
     gameMode,
     humanColor,
     isComputerThinking,
+    engineEval,
     setGameMode,
     setHumanColor,
   };

@@ -1,4 +1,4 @@
-import type { ValidMovesResponse, SubmitMoveResponse } from './types';
+import type { ValidMovesResponse, SubmitMoveResponse, SubmitBestMoveResponse } from './types';
 
 const BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -34,5 +34,9 @@ export const api = {
 
   submitMove(fen: string, move: string, signal?: AbortSignal): Promise<SubmitMoveResponse> {
     return apiFetch<SubmitMoveResponse>('/submitmove', { fen, move }, signal);
+  },
+
+  submitBestMove(fen: string, signal?: AbortSignal): Promise<SubmitBestMoveResponse> {
+    return apiFetch<SubmitBestMoveResponse>('/submitbestmove', { fen, depth: 10, timeout_ms: 2000 }, signal);
   },
 };
