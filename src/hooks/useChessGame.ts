@@ -1,8 +1,8 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import type { SquareCoord, GameStatus, SideToMove, Board, PieceColor, PromotionPiece } from '../types/chess';
 import type { ValidMove, ValidMovesResponse } from '../api/types';
 import { api } from '../api/client';
-import { INITIAL_FEN, parseFenBoard, fenSideToMove, pieceColor, findKingSquare } from '../utils/fen';
+import { INITIAL_FEN, INITIAL_VALID_MOVES, parseFenBoard, fenSideToMove, pieceColor, findKingSquare } from '../utils/fen';
 import { coordToAlgebraic } from '../utils/squares';
 
 interface ChessGameState {
@@ -37,11 +37,10 @@ export function useChessGame(): ChessGameState {
   const [error, setError] = useState<string | null>(null);
 
   // Cache valid moves per FEN
-  const movesCache = useRef<{ fen: string; response: ValidMovesResponse } | null>(null);
-  const [allMoves, setAllMoves] = useState<ValidMove[]>([]);
-
-  // AbortController for cancelling in-flight fetch requests
-  const fetchControllerRef = useRef<AbortController | null>(null);
+  const movesCache = useRef<{ fen: string; response: ValidMovesResponse } | null>(
+    { fen: INITIAL_FEN, response: INITIAL_VALID_MOVES }
+  );
+  const [allMoves, setAllMoves] = useState<ValidMove[]>(INITIAL_VALID_MOVES.moves);
 
   const board = useMemo(() => parseFenBoard(fen), [fen]);
   const activeColor: PieceColor = fenSideToMove(fen) === 'white' ? 'w' : 'b';
@@ -52,45 +51,9 @@ export function useChessGame(): ChessGameState {
     return allMoves.filter((m) => m.from === fromAlg);
   }, [selectedSquare, allMoves]);
 
-  const fetchMoves = useCallback(async (currentFen: string, signal?: AbortSignal): Promise<ValidMovesResponse | null> => {
-    // Return cached if same position
-    if (movesCache.current?.fen === currentFen) {
-      return movesCache.current.response;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await api.getValidMoves(currentFen, signal);
-      if (signal?.aborted) return null;
-      movesCache.current = { fen: currentFen, response };
-      setAllMoves(response.moves);
-      setGameStatus(response.status);
-      setSideToMove(response.side_to_move);
-      return response;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return null;
-      setError(err instanceof Error ? err.message : 'Failed to fetch moves');
-      return null;
-    } finally {
-      if (!signal?.aborted) setIsLoading(false);
-    }
-  }, []);
-
-  // Pre-fetch valid moves for the starting position on mount
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchMoves(INITIAL_FEN, controller.signal);
-    return () => controller.abort();
-  }, [fetchMoves]);
-
   const submitMove = useCallback(async (currentFen: string, uci: string, from: string, to: string) => {
     setIsLoading(true);
     setError(null);
-
-    // Abort any in-flight fetch since we're making a new move
-    fetchControllerRef.current?.abort();
-    fetchControllerRef.current = null;
 
     try {
       const response = await api.submitMove(currentFen, uci);
@@ -189,8 +152,6 @@ export function useChessGame(): ChessGameState {
   }, [pendingPromotion, fen, submitMove]);
 
   const newGame = useCallback(() => {
-    fetchControllerRef.current?.abort();
-    fetchControllerRef.current = null;
     setFen(INITIAL_FEN);
     setSelectedSquare(null);
     setGameStatus('ongoing');
@@ -199,13 +160,9 @@ export function useChessGame(): ChessGameState {
     setCheckSquare(null);
     setPendingPromotion(null);
     setError(null);
-    movesCache.current = null;
-    setAllMoves([]);
-
-    const controller = new AbortController();
-    fetchControllerRef.current = controller;
-    fetchMoves(INITIAL_FEN, controller.signal);
-  }, [fetchMoves]);
+    movesCache.current = { fen: INITIAL_FEN, response: INITIAL_VALID_MOVES };
+    setAllMoves(INITIAL_VALID_MOVES.moves);
+  }, []);
 
   return {
     board,
