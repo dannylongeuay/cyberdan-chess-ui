@@ -165,12 +165,8 @@ The Docker image builds the app with Bun and serves it with Nginx.
 ### Build
 
 ```bash
-docker build -t cyberdan-chess-ui \
-  --build-arg VITE_API_URL=https://your-api.example.com \
-  .
+docker build -t cyberdan-chess-ui .
 ```
-
-The `VITE_API_URL` build arg is baked into the static bundle at build time.
 
 ### Run
 

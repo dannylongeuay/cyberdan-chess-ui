@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo } from 'react';
 import type { SquareCoord, GameStatus, SideToMove, Board, PieceColor, PromotionPiece } from '../types/chess';
 import type { ValidMove, ValidMovesResponse } from '../api/types';
 import { api } from '../api/client';
-import { INITIAL_FEN, parseFenBoard, fenSideToMove, pieceColor } from '../utils/fen';
+import { INITIAL_FEN, parseFenBoard, fenSideToMove, pieceColor, findKingSquare } from '../utils/fen';
 import { coordToAlgebraic } from '../utils/squares';
 
 interface ChessGameState {
@@ -40,6 +40,9 @@ export function useChessGame(): ChessGameState {
   const movesCache = useRef<{ fen: string; response: ValidMovesResponse } | null>(null);
   const [allMoves, setAllMoves] = useState<ValidMove[]>([]);
 
+  // AbortController for cancelling in-flight fetch requests
+  const fetchControllerRef = useRef<AbortController | null>(null);
+
   const board = useMemo(() => parseFenBoard(fen), [fen]);
   const activeColor: PieceColor = fenSideToMove(fen) === 'white' ? 'w' : 'b';
 
@@ -49,7 +52,7 @@ export function useChessGame(): ChessGameState {
     return allMoves.filter((m) => m.from === fromAlg);
   }, [selectedSquare, allMoves]);
 
-  const fetchMoves = useCallback(async (currentFen: string): Promise<ValidMovesResponse | null> => {
+  const fetchMoves = useCallback(async (currentFen: string, signal?: AbortSignal): Promise<ValidMovesResponse | null> => {
     // Return cached if same position
     if (movesCache.current?.fen === currentFen) {
       return movesCache.current.response;
@@ -58,31 +61,30 @@ export function useChessGame(): ChessGameState {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.getValidMoves(currentFen);
+      const response = await api.getValidMoves(currentFen, signal);
+      if (signal?.aborted) return null;
       movesCache.current = { fen: currentFen, response };
       setAllMoves(response.moves);
       setGameStatus(response.status);
       setSideToMove(response.side_to_move);
-
-      // Find if any move gives check — detect king in check
-      // Actually, check is on current position, not on move result.
-      // The king is in check if the opponent's last move was a checking move.
-      // We detect this from the position status from the API or from the FEN.
-      // For simplicity, if any of the opponent's moves result in the position
-      // we handle check detection via the submit response. Already handled.
-
       return response;
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return null;
       setError(err instanceof Error ? err.message : 'Failed to fetch moves');
       return null;
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) setIsLoading(false);
     }
   }, []);
 
   const submitMove = useCallback(async (currentFen: string, uci: string, from: string, to: string) => {
     setIsLoading(true);
     setError(null);
+
+    // Abort any in-flight fetch since we're making a new move
+    fetchControllerRef.current?.abort();
+    fetchControllerRef.current = null;
+
     try {
       const response = await api.submitMove(currentFen, uci);
       setFen(response.fen);
@@ -93,57 +95,13 @@ export function useChessGame(): ChessGameState {
       movesCache.current = null;
       setAllMoves([]);
 
-      // Fetch moves for next position to detect check
-      if (response.status === 'ongoing') {
-        const nextMoves = await api.getValidMoves(response.fen);
-        movesCache.current = { fen: response.fen, response: nextMoves };
-        setAllMoves(nextMoves.moves);
-        setGameStatus(nextMoves.status);
-
-        // Detect check: find the king of the side to move
+      // Detect check/checkmate from the SAN notation returned by the API
+      if (response.san.includes('+') || response.san.includes('#')) {
         const nextBoard = parseFenBoard(response.fen);
         const kingColor = response.side_to_move === 'white' ? 'w' : 'b';
-        const kingType = 'K';
-        let kingPos: string | null = null;
-        for (let r = 0; r < 8; r++) {
-          for (let c = 0; c < 8; c++) {
-            const p = nextBoard[r][c];
-            if (p && p[0] === kingColor && p[1] === kingType) {
-              kingPos = coordToAlgebraic({ row: r, col: c });
-            }
-          }
-        }
-
-        // Check if any opponent move targets the king position
-        // Actually, a simpler approach: check if the move we just made was a check
-        // We can check this from the valid moves response — if status has check info
-        // The move we submitted might have had check=true in the valid moves list
-        // Simpler: check if the king of side_to_move is attacked
-        // We'll use a heuristic: if the SAN of any previous valid move ended with +
-        // Actually the API doesn't tell us directly. Let's check the SAN from submit response.
-        if (response.san.includes('+') || response.san.includes('#')) {
-          setCheckSquare(kingPos);
-        } else {
-          setCheckSquare(null);
-        }
+        setCheckSquare(findKingSquare(nextBoard, kingColor));
       } else {
-        // Game over — check for checkmate indicator
-        if (response.status === 'checkmate') {
-          const nextBoard = parseFenBoard(response.fen);
-          const kingColor = response.side_to_move === 'white' ? 'w' : 'b';
-          let kingPos: string | null = null;
-          for (let r = 0; r < 8; r++) {
-            for (let c = 0; c < 8; c++) {
-              const p = nextBoard[r][c];
-              if (p && p[0] === kingColor && p[1] === 'K') {
-                kingPos = coordToAlgebraic({ row: r, col: c });
-              }
-            }
-          }
-          setCheckSquare(kingPos);
-        } else {
-          setCheckSquare(null);
-        }
+        setCheckSquare(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit move');
@@ -187,12 +145,13 @@ export function useChessGame(): ChessGameState {
 
     // Click on own piece — select it
     if (piece && pieceColor(piece) === activeColor) {
+      // Abort any previous in-flight fetch to prevent stale state updates
+      fetchControllerRef.current?.abort();
+      const controller = new AbortController();
+      fetchControllerRef.current = controller;
+
       setSelectedSquare(coord);
-      // Fetch moves if not cached
-      const response = await fetchMoves(fen);
-      if (response) {
-        setAllMoves(response.moves);
-      }
+      await fetchMoves(fen, controller.signal);
       return;
     }
 
@@ -220,6 +179,8 @@ export function useChessGame(): ChessGameState {
   }, [pendingPromotion, fen, submitMove]);
 
   const newGame = useCallback(() => {
+    fetchControllerRef.current?.abort();
+    fetchControllerRef.current = null;
     setFen(INITIAL_FEN);
     setSelectedSquare(null);
     setGameStatus('ongoing');

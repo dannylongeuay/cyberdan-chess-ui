@@ -1,4 +1,5 @@
 import type { Board, PieceColor, PieceData, PieceType, SideToMove } from '../types/chess';
+import { coordToAlgebraic } from './squares';
 
 export const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -32,4 +33,16 @@ export function pieceColor(piece: PieceData): PieceColor {
 
 export function pieceType(piece: PieceData): PieceType {
   return piece[1] as PieceType;
+}
+
+export function findKingSquare(board: Board, color: PieceColor): string | null {
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (p && p[0] === color && p[1] === 'K') {
+        return coordToAlgebraic({ row: r, col: c });
+      }
+    }
+  }
+  return null;
 }

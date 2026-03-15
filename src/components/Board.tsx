@@ -1,4 +1,4 @@
-import { useRef, useCallback, type PointerEvent as ReactPointerEvent } from 'react';
+import { useRef, useCallback, useEffect, useMemo, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Board as BoardType, PieceData, SquareCoord } from '../types/chess';
 import type { ValidMove } from '../api/types';
 import { coordToAlgebraic } from '../utils/squares';
@@ -40,8 +40,17 @@ export default function Board({
     pointerId: number;
   } | null>(null);
 
-  const legalMoveSet = new Set(legalMoves.map((m) => m.to));
-  const captureSet = new Set(legalMoves.filter((m) => m.capture).map((m) => m.to));
+  const legalMoveSet = useMemo(() => new Set(legalMoves.map((m) => m.to)), [legalMoves]);
+  const captureSet = useMemo(() => new Set(legalMoves.filter((m) => m.capture).map((m) => m.to)), [legalMoves]);
+
+  // Clean up ghost element on unmount to prevent DOM leaks
+  useEffect(() => {
+    return () => {
+      if (dragState.current?.ghostEl) {
+        dragState.current.ghostEl.remove();
+      }
+    };
+  }, []);
 
   const getSquareFromPoint = useCallback((clientX: number, clientY: number): SquareCoord | null => {
     const el = boardRef.current;
@@ -93,13 +102,15 @@ export default function Board({
 
     if (!ds.isDragging && Math.abs(dx) + Math.abs(dy) > DRAG_THRESHOLD) {
       ds.isDragging = true;
+      const boardEl = boardRef.current;
+      if (!boardEl) return;
       // Create ghost element
       const ghost = document.createElement('img');
       ghost.src = pieceImages[ds.piece];
       ghost.style.position = 'fixed';
       ghost.style.pointerEvents = 'none';
       ghost.style.zIndex = '1000';
-      const rect = boardRef.current!.getBoundingClientRect();
+      const rect = boardEl.getBoundingClientRect();
       const size = rect.width / 8 * 0.85;
       ghost.style.width = `${size}px`;
       ghost.style.height = `${size}px`;

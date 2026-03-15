@@ -11,11 +11,12 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, body: unknown): Promise<T> {
+async function apiFetch<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   });
 
   if (!res.ok) {
@@ -27,11 +28,11 @@ async function apiFetch<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const api = {
-  getValidMoves(fen: string): Promise<ValidMovesResponse> {
-    return apiFetch<ValidMovesResponse>('/validmoves', { fen });
+  getValidMoves(fen: string, signal?: AbortSignal): Promise<ValidMovesResponse> {
+    return apiFetch<ValidMovesResponse>('/validmoves', { fen }, signal);
   },
 
-  submitMove(fen: string, move: string): Promise<SubmitMoveResponse> {
-    return apiFetch<SubmitMoveResponse>('/submitmove', { fen, move });
+  submitMove(fen: string, move: string, signal?: AbortSignal): Promise<SubmitMoveResponse> {
+    return apiFetch<SubmitMoveResponse>('/submitmove', { fen, move }, signal);
   },
 };

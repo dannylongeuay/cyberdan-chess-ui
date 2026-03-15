@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { PieceData } from '../types/chess';
 import { isLightSquare } from '../utils/squares';
 import Piece from './Piece';
@@ -16,7 +17,7 @@ interface SquareProps {
   showFile: boolean;   // row === 7
 }
 
-export default function Square({
+function Square({
   row,
   col,
   piece,
@@ -83,3 +84,5 @@ export default function Square({
     </div>
   );
 }
+
+export default memo(Square);
