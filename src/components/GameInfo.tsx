@@ -21,6 +21,8 @@ function statusMessage(status: GameStatus, sideToMove: SideToMove): string {
       return 'Draw — Fifty-move rule';
     case 'insufficient_material':
       return 'Draw — Insufficient material';
+    case 'threefold_repetition':
+      return 'Draw — Threefold repetition';
   }
 }
 

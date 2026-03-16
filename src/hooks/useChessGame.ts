@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import type { SquareCoord, GameStatus, SideToMove, Board, PieceColor, PromotionPiece, GameMode, HumanColor, EngineEval } from '../types/chess';
 import type { ValidMove, ValidMovesResponse, SubmitMoveResponse } from '../api/types';
 import { api } from '../api/client';
-import { INITIAL_FEN, INITIAL_VALID_MOVES, parseFenBoard, fenSideToMove, pieceColor, findKingSquare } from '../utils/fen';
+import { INITIAL_FEN, INITIAL_VALID_MOVES, parseFenBoard, fenSideToMove, pieceColor, findKingSquare, positionKey } from '../utils/fen';
 import { coordToAlgebraic } from '../utils/squares';
 
 interface ChessGameState {
@@ -46,6 +46,11 @@ export function useChessGame(): ChessGameState {
   const [isComputerThinking, setIsComputerThinking] = useState(false);
   const [engineEval, setEngineEval] = useState<EngineEval | null>(null);
 
+  // Track position history for threefold repetition detection
+  const positionHistory = useRef<Map<string, number>>(
+    new Map([[positionKey(INITIAL_FEN), 1]])
+  );
+
   // Cache valid moves per FEN
   const movesCache = useRef<{ fen: string; response: ValidMovesResponse } | null>(
     { fen: INITIAL_FEN, response: INITIAL_VALID_MOVES }
@@ -67,8 +72,17 @@ export function useChessGame(): ChessGameState {
 
   const applyMoveResponse = useCallback((response: SubmitMoveResponse) => {
     setFen(response.fen);
-    setGameStatus(response.status);
     setSideToMove(response.side_to_move);
+
+    // Detect threefold repetition
+    const key = positionKey(response.fen);
+    const count = (positionHistory.current.get(key) ?? 0) + 1;
+    positionHistory.current.set(key, count);
+    if (count >= 3) {
+      setGameStatus('threefold_repetition');
+    } else {
+      setGameStatus(response.status);
+    }
     setSelectedSquare(null);
     setLastMove({ from: response.from, to: response.to });
     movesCache.current = {
@@ -183,6 +197,7 @@ export function useChessGame(): ChessGameState {
     setEngineEval(null);
     movesCache.current = { fen: INITIAL_FEN, response: INITIAL_VALID_MOVES };
     setAllMoves(INITIAL_VALID_MOVES.moves);
+    positionHistory.current = new Map([[positionKey(INITIAL_FEN), 1]]);
   }, []);
 
   const setGameMode = useCallback((mode: GameMode) => {

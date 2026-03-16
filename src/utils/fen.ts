@@ -65,6 +65,10 @@ export function pieceType(piece: PieceData): PieceType {
   return piece[1] as PieceType;
 }
 
+export function positionKey(fen: string): string {
+  return fen.split(' ').slice(0, 4).join(' ');
+}
+
 export function findKingSquare(board: Board, color: PieceColor): string | null {
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {

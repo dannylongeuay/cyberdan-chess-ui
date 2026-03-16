@@ -16,7 +16,8 @@ export type GameStatus =
   | 'checkmate'
   | 'stalemate'
   | 'fifty_move_rule'
-  | 'insufficient_material';
+  | 'insufficient_material'
+  | 'threefold_repetition';
 
 export type SideToMove = 'white' | 'black';
 
