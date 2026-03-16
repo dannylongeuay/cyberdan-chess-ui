@@ -1,3 +1,5 @@
+import type { EngineEval } from '../types/chess';
+
 export interface ValidMove {
   uci: string;
   san: string;
@@ -38,8 +40,4 @@ export interface SubmitMoveResponse {
   moves: ValidMove[];
 }
 
-export interface SubmitBestMoveResponse extends SubmitMoveResponse {
-  depth: number;
-  score: number;
-  nodes: number;
-}
+export interface SubmitBestMoveResponse extends SubmitMoveResponse, EngineEval {}

@@ -44,7 +44,9 @@ export default function GameInfo({ sideToMove, status, isComputerThinking, engin
       )}
       {engineEval && !isGameOver && (
         <p className="text-sm text-gray-400 mt-1">
-          Eval: {formatScore(engineEval.score)} | Depth: {engineEval.depth}
+          {engineEval.source === 'book'
+            ? 'Book move'
+            : `Eval: ${formatScore(engineEval.score)} | Depth: ${engineEval.depth}`}
         </p>
       )}
     </div>

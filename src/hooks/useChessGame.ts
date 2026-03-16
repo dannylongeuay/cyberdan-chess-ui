@@ -213,7 +213,7 @@ export function useChessGame(): ChessGameState {
 
         // Negate score: engine reports from its own perspective,
         // but we display from the human's perspective
-        setEngineEval({ depth: response.depth, score: -response.score, nodes: response.nodes });
+        setEngineEval({ depth: response.depth, score: -response.score, nodes: response.nodes, source: response.source });
       })
       .catch((err) => {
         if (abortController.signal.aborted) return;

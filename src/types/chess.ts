@@ -27,4 +27,5 @@ export interface EngineEval {
   depth: number;
   score: number;
   nodes: number;
+  source: 'book' | 'search';
 }
