@@ -26,6 +26,8 @@ function App() {
     humanColor,
     isComputerThinking,
     engineEval,
+    flipped,
+    toggleFlip,
     setGameMode,
     setHumanColor,
   } = useChessGame();
@@ -45,7 +47,16 @@ function App() {
         checkSquare={checkSquare}
         onSquareClick={selectSquare}
         onDrop={handleDrop}
+        flipped={flipped}
       />
+
+      <button
+        onClick={toggleFlip}
+        aria-label="Flip board orientation"
+        className="px-4 py-1.5 text-sm font-medium transition-colors cursor-pointer bg-gray-800 text-gray-400 hover:text-gray-200 rounded-lg"
+      >
+        Flip Board
+      </button>
 
       <div className="h-6 flex items-center justify-center">
         {error && <p className="text-red-400 text-sm">{error}</p>}

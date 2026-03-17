@@ -5,6 +5,9 @@ import { api } from '../api/client';
 import { INITIAL_FEN, INITIAL_VALID_MOVES, parseFenBoard, fenSideToMove, pieceColor, findKingSquare, positionKey } from '../utils/fen';
 import { coordToAlgebraic } from '../utils/squares';
 
+/** Minimum delay before a computer move appears, to avoid jarring instant moves */
+const COMPUTER_MOVE_DELAY_MS = 750;
+
 interface ChessGameState {
   board: Board;
   activeColor: PieceColor;
@@ -25,6 +28,8 @@ interface ChessGameState {
   humanColor: HumanColor;
   isComputerThinking: boolean;
   engineEval: EngineEval | null;
+  flipped: boolean;
+  toggleFlip: () => void;
   setGameMode: (mode: GameMode) => void;
   setHumanColor: (color: HumanColor) => void;
 }
@@ -45,6 +50,7 @@ export function useChessGame(): ChessGameState {
   const [humanColor, setHumanColorState] = useState<HumanColor>('white');
   const [isComputerThinking, setIsComputerThinking] = useState(false);
   const [engineEval, setEngineEval] = useState<EngineEval | null>(null);
+  const [flipped, setFlipped] = useState(false);
 
   // Track position history for threefold repetition detection
   const positionHistory = useRef<Map<string, number>>(
@@ -200,13 +206,23 @@ export function useChessGame(): ChessGameState {
     positionHistory.current = new Map([[positionKey(INITIAL_FEN), 1]]);
   }, []);
 
+  const toggleFlip = useCallback(() => {
+    setFlipped((prev) => !prev);
+  }, []);
+
   const setGameMode = useCallback((mode: GameMode) => {
     setGameModeState(mode);
+    if (mode === 'pvp') {
+      setFlipped(false);
+    } else {
+      setFlipped(humanColor === 'black');
+    }
     newGame();
-  }, [newGame]);
+  }, [newGame, humanColor]);
 
   const setHumanColor = useCallback((color: HumanColor) => {
     setHumanColorState(color);
+    setFlipped(color === 'black');
     newGame();
   }, [newGame]);
 
@@ -220,8 +236,13 @@ export function useChessGame(): ChessGameState {
     setIsComputerThinking(true);
     setError(null);
 
-    api.submitBestMove(fen, abortController.signal)
-      .then((response) => {
+    let delayTimerId: ReturnType<typeof setTimeout>;
+    const minDelay = new Promise<void>((resolve) => {
+      delayTimerId = setTimeout(resolve, COMPUTER_MOVE_DELAY_MS);
+    });
+
+    Promise.all([api.submitBestMove(fen, abortController.signal), minDelay])
+      .then(([response]) => {
         if (abortController.signal.aborted) return;
 
         applyMoveResponse(response);
@@ -242,6 +263,7 @@ export function useChessGame(): ChessGameState {
 
     return () => {
       abortController.abort();
+      clearTimeout(delayTimerId);
       setIsComputerThinking(false);
     };
   }, [gameMode, gameStatus, sideToMove, computerColor, fen, applyMoveResponse]);
@@ -266,6 +288,8 @@ export function useChessGame(): ChessGameState {
     humanColor,
     isComputerThinking,
     engineEval,
+    flipped,
+    toggleFlip,
     setGameMode,
     setHumanColor,
   };

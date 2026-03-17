@@ -13,11 +13,15 @@ interface BoardProps {
   legalMoves: ValidMove[];
   lastMove: { from: string; to: string } | null;
   checkSquare: string | null;
+  flipped: boolean;
   onSquareClick: (coord: SquareCoord) => void;
   onDrop: (from: SquareCoord, to: SquareCoord) => void;
 }
 
 const DRAG_THRESHOLD = 5;
+
+const NORMAL_INDICES = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+const FLIPPED_INDICES = [7, 6, 5, 4, 3, 2, 1, 0] as const;
 
 export default function Board({
   board,
@@ -26,6 +30,7 @@ export default function Board({
   legalMoves,
   lastMove,
   checkSquare,
+  flipped,
   onSquareClick,
   onDrop,
 }: BoardProps) {
@@ -39,6 +44,8 @@ export default function Board({
     ghostEl: HTMLImageElement | null;
     pointerId: number;
   } | null>(null);
+
+  const indices = flipped ? FLIPPED_INDICES : NORMAL_INDICES;
 
   const legalMoveSet = useMemo(() => new Set(legalMoves.map((m) => m.to)), [legalMoves]);
   const captureSet = useMemo(() => new Set(legalMoves.filter((m) => m.capture).map((m) => m.to)), [legalMoves]);
@@ -57,11 +64,13 @@ export default function Board({
     if (!el) return null;
     const rect = el.getBoundingClientRect();
     const squareSize = rect.width / 8;
-    const col = Math.floor((clientX - rect.left) / squareSize);
-    const row = Math.floor((clientY - rect.top) / squareSize);
-    if (row < 0 || row > 7 || col < 0 || col > 7) return null;
+    const visualCol = Math.floor((clientX - rect.left) / squareSize);
+    const visualRow = Math.floor((clientY - rect.top) / squareSize);
+    if (visualRow < 0 || visualRow > 7 || visualCol < 0 || visualCol > 7) return null;
+    const row = flipped ? 7 - visualRow : visualRow;
+    const col = flipped ? 7 - visualCol : visualCol;
     return { row, col };
-  }, []);
+  }, [flipped]);
 
   const cleanupDrag = useCallback(() => {
     const ds = dragState.current;
@@ -153,8 +162,9 @@ export default function Board({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       >
-        {board.map((row, r) =>
-          row.map((piece, c) => {
+        {indices.map((r, visualRow) =>
+          indices.map((c, visualCol) => {
+            const piece = board[r][c];
             const alg = coordToAlgebraic({ row: r, col: c });
             const isSelected =
               selectedSquare !== null &&
@@ -180,8 +190,8 @@ export default function Board({
                 }
                 isCheck={checkSquare === alg}
                 isDragSource={isDragSource}
-                showRank={c === 0}
-                showFile={r === 7}
+                showRank={visualCol === 0}
+                showFile={visualRow === 7}
               />
             );
           })
