@@ -153,7 +153,7 @@ export default function Board({
 
   return (
     <div
-      className="w-full max-w-[min(90vw,85vh,640px)] rounded-lg overflow-hidden shadow-xl"
+      className="w-full rounded-lg overflow-hidden shadow-xl"
     >
       <div
         ref={boardRef}
