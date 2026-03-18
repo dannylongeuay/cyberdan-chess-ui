@@ -1,7 +1,5 @@
 import type { ValidMovesResponse, SubmitMoveResponse, SubmitBestMoveResponse } from './types';
 
-const BASE_URL = import.meta.env.VITE_API_URL;
-
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -11,8 +9,8 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+async function apiFetch<T>(baseUrl: string, path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -28,15 +26,15 @@ async function apiFetch<T>(path: string, body: unknown, signal?: AbortSignal): P
 }
 
 export const api = {
-  getValidMoves(fen: string, signal?: AbortSignal): Promise<ValidMovesResponse> {
-    return apiFetch<ValidMovesResponse>('/validmoves', { fen }, signal);
+  getValidMoves(baseUrl: string, fen: string, signal?: AbortSignal): Promise<ValidMovesResponse> {
+    return apiFetch<ValidMovesResponse>(baseUrl, '/validmoves', { fen }, signal);
   },
 
-  submitMove(fen: string, move: string, signal?: AbortSignal): Promise<SubmitMoveResponse> {
-    return apiFetch<SubmitMoveResponse>('/submitmove', { fen, move }, signal);
+  submitMove(baseUrl: string, fen: string, move: string, signal?: AbortSignal): Promise<SubmitMoveResponse> {
+    return apiFetch<SubmitMoveResponse>(baseUrl, '/submitmove', { fen, move }, signal);
   },
 
-  submitBestMove(fen: string, signal?: AbortSignal): Promise<SubmitBestMoveResponse> {
-    return apiFetch<SubmitBestMoveResponse>('/submitbestmove', { fen, depth: 10, timeout_ms: 2000 }, signal);
+  submitBestMove(baseUrl: string, fen: string, signal?: AbortSignal): Promise<SubmitBestMoveResponse> {
+    return apiFetch<SubmitBestMoveResponse>(baseUrl, '/submitbestmove', { fen, depth: 10, timeout_ms: 2000 }, signal);
   },
 };

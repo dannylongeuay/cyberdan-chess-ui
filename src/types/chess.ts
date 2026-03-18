@@ -21,7 +21,7 @@ export type GameStatus =
 
 export type SideToMove = 'white' | 'black';
 
-export type GameMode = 'pvp' | 'pvc';
+export type GameMode = 'pvp' | 'pvc' | 'cvc';
 export type HumanColor = 'white' | 'black';
 
 export interface EngineEval {

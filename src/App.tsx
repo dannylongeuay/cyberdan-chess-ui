@@ -30,6 +30,15 @@ function App() {
     toggleFlip,
     setGameMode,
     setHumanColor,
+    backend,
+    backends,
+    setBackend,
+    whiteBackend,
+    blackBackend,
+    setWhiteBackend,
+    setBlackBackend,
+    autoplay,
+    setAutoplay,
   } = useChessGame();
 
   return (
@@ -68,6 +77,15 @@ function App() {
         humanColor={humanColor}
         onModeChange={setGameMode}
         onColorChange={setHumanColor}
+        backend={backend}
+        backends={backends}
+        onBackendChange={setBackend}
+        whiteBackend={whiteBackend}
+        blackBackend={blackBackend}
+        onWhiteBackendChange={setWhiteBackend}
+        onBlackBackendChange={setBlackBackend}
+        autoplay={autoplay}
+        onAutoplayChange={setAutoplay}
       />
 
       <NewGameButton onClick={newGame} />

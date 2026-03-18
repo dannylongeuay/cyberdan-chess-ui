@@ -2,11 +2,15 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import type { SquareCoord, GameStatus, SideToMove, Board, PieceColor, PromotionPiece, GameMode, HumanColor, EngineEval } from '../types/chess';
 import type { ValidMove, ValidMovesResponse, SubmitMoveResponse } from '../api/types';
 import { api } from '../api/client';
+import { BACKENDS, DEFAULT_BACKEND, type Backend } from '../api/backends';
 import { INITIAL_FEN, INITIAL_VALID_MOVES, parseFenBoard, fenSideToMove, pieceColor, findKingSquare, positionKey } from '../utils/fen';
 import { coordToAlgebraic } from '../utils/squares';
 
 /** Minimum delay before a computer move appears, to avoid jarring instant moves */
 const COMPUTER_MOVE_DELAY_MS = 750;
+
+/** Delay before auto-restarting a CvC game */
+const AUTOPLAY_DELAY_MS = 2500;
 
 interface ChessGameState {
   board: Board;
@@ -32,6 +36,15 @@ interface ChessGameState {
   toggleFlip: () => void;
   setGameMode: (mode: GameMode) => void;
   setHumanColor: (color: HumanColor) => void;
+  backend: Backend;
+  backends: Backend[];
+  setBackend: (backend: Backend) => void;
+  whiteBackend: Backend;
+  blackBackend: Backend;
+  setWhiteBackend: (backend: Backend) => void;
+  setBlackBackend: (backend: Backend) => void;
+  autoplay: boolean;
+  setAutoplay: (on: boolean) => void;
 }
 
 export function useChessGame(): ChessGameState {
@@ -51,6 +64,10 @@ export function useChessGame(): ChessGameState {
   const [isComputerThinking, setIsComputerThinking] = useState(false);
   const [engineEval, setEngineEval] = useState<EngineEval | null>(null);
   const [flipped, setFlipped] = useState(false);
+  const [backend, setBackendState] = useState<Backend>(DEFAULT_BACKEND);
+  const [whiteBackend, setWhiteBackendState] = useState<Backend>(BACKENDS[0]);
+  const [blackBackend, setBlackBackendState] = useState<Backend>(BACKENDS[1] ?? BACKENDS[0]);
+  const [autoplay, setAutoplayState] = useState(false);
 
   // Track position history for threefold repetition detection
   const positionHistory = useRef<Map<string, number>>(
@@ -117,14 +134,14 @@ export function useChessGame(): ChessGameState {
     setError(null);
 
     try {
-      const response = await api.submitMove(currentFen, uci);
+      const response = await api.submitMove(backend.url, currentFen, uci);
       applyMoveResponse(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit move');
     } finally {
       setIsLoading(false);
     }
-  }, [applyMoveResponse]);
+  }, [applyMoveResponse, backend.url]);
 
   const tryMove = useCallback((from: SquareCoord, to: SquareCoord, moves: ValidMove[]) => {
     const fromAlg = coordToAlgebraic(from);
@@ -145,6 +162,7 @@ export function useChessGame(): ChessGameState {
   }, [fen, submitMove]);
 
   const selectSquare = useCallback((coord: SquareCoord) => {
+    if (gameMode === 'cvc') return;
     if (isComputerThinking) return;
     if (gameStatus !== 'ongoing') return;
 
@@ -168,9 +186,10 @@ export function useChessGame(): ChessGameState {
 
     // Click on empty square or opponent piece (not a legal move) — deselect
     setSelectedSquare(null);
-  }, [board, activeColor, selectedSquare, legalMovesForSquare, gameStatus, tryMove, isComputerThinking]);
+  }, [board, activeColor, selectedSquare, legalMovesForSquare, gameStatus, tryMove, isComputerThinking, gameMode]);
 
   const handleDrop = useCallback((from: SquareCoord, to: SquareCoord) => {
+    if (gameMode === 'cvc') return;
     if (isComputerThinking) return;
     if (gameStatus !== 'ongoing') return;
     // The moves should already be cached from pointerdown
@@ -179,7 +198,7 @@ export function useChessGame(): ChessGameState {
       const moves = movesCache.current.response.moves.filter((m) => m.from === fromAlg);
       tryMove(from, to, moves);
     }
-  }, [isComputerThinking, gameStatus, fen, tryMove]);
+  }, [isComputerThinking, gameStatus, fen, tryMove, gameMode]);
 
   const handlePromotion = useCallback((piece: PromotionPiece) => {
     if (!pendingPromotion) return;
@@ -212,10 +231,13 @@ export function useChessGame(): ChessGameState {
 
   const setGameMode = useCallback((mode: GameMode) => {
     setGameModeState(mode);
-    if (mode === 'pvp') {
+    if (mode === 'pvp' || mode === 'cvc') {
       setFlipped(false);
     } else {
       setFlipped(humanColor === 'black');
+    }
+    if (mode !== 'cvc') {
+      setAutoplayState(false);
     }
     newGame();
   }, [newGame, humanColor]);
@@ -226,11 +248,34 @@ export function useChessGame(): ChessGameState {
     newGame();
   }, [newGame]);
 
+  const setBackend = useCallback((b: Backend) => {
+    setBackendState(b);
+    newGame();
+  }, [newGame]);
+
+  const setWhiteBackend = useCallback((b: Backend) => {
+    setWhiteBackendState(b);
+    newGame();
+  }, [newGame]);
+
+  const setBlackBackend = useCallback((b: Backend) => {
+    setBlackBackendState(b);
+    newGame();
+  }, [newGame]);
+
+  const setAutoplay = useCallback((on: boolean) => {
+    setAutoplayState(on);
+  }, []);
+
   // Computer auto-move effect
   useEffect(() => {
-    if (gameMode !== 'pvc') return;
+    if (gameMode !== 'pvc' && gameMode !== 'cvc') return;
     if (gameStatus !== 'ongoing') return;
-    if (sideToMove !== computerColor) return;
+    if (gameMode === 'pvc' && sideToMove !== computerColor) return;
+
+    const moveBackendUrl = gameMode === 'cvc'
+      ? (sideToMove === 'white' ? whiteBackend.url : blackBackend.url)
+      : backend.url;
 
     const abortController = new AbortController();
     setIsComputerThinking(true);
@@ -241,15 +286,21 @@ export function useChessGame(): ChessGameState {
       delayTimerId = setTimeout(resolve, COMPUTER_MOVE_DELAY_MS);
     });
 
-    Promise.all([api.submitBestMove(fen, abortController.signal), minDelay])
+    Promise.all([api.submitBestMove(moveBackendUrl, fen, abortController.signal), minDelay])
       .then(([response]) => {
         if (abortController.signal.aborted) return;
 
         applyMoveResponse(response);
 
-        // Negate score: engine reports from its own perspective,
-        // but we display from the human's perspective
-        setEngineEval({ depth: response.depth, score: -response.score, nodes: response.nodes, source: response.source });
+        if (gameMode === 'cvc') {
+          // In CvC, normalize eval to white's perspective
+          const sign = sideToMove === 'white' ? 1 : -1;
+          setEngineEval({ depth: response.depth, score: sign * response.score, nodes: response.nodes, source: response.source });
+        } else {
+          // Negate score: engine reports from its own perspective,
+          // but we display from the human's perspective
+          setEngineEval({ depth: response.depth, score: -response.score, nodes: response.nodes, source: response.source });
+        }
       })
       .catch((err) => {
         if (abortController.signal.aborted) return;
@@ -266,7 +317,18 @@ export function useChessGame(): ChessGameState {
       clearTimeout(delayTimerId);
       setIsComputerThinking(false);
     };
-  }, [gameMode, gameStatus, sideToMove, computerColor, fen, applyMoveResponse]);
+  }, [gameMode, gameStatus, sideToMove, computerColor, fen, applyMoveResponse, backend.url, whiteBackend.url, blackBackend.url]);
+
+  // Autoplay effect: restart game after completion in CvC mode
+  useEffect(() => {
+    if (!autoplay || gameMode !== 'cvc' || gameStatus === 'ongoing') return;
+
+    const timerId = setTimeout(() => {
+      newGame();
+    }, AUTOPLAY_DELAY_MS);
+
+    return () => clearTimeout(timerId);
+  }, [autoplay, gameMode, gameStatus, newGame]);
 
   return {
     board,
@@ -292,5 +354,14 @@ export function useChessGame(): ChessGameState {
     toggleFlip,
     setGameMode,
     setHumanColor,
+    backend,
+    backends: BACKENDS,
+    setBackend,
+    whiteBackend,
+    blackBackend,
+    setWhiteBackend,
+    setBlackBackend,
+    autoplay,
+    setAutoplay,
   };
 }
