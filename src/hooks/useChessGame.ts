@@ -45,6 +45,10 @@ interface ChessGameState {
   setBlackBackend: (backend: Backend) => void;
   autoplay: boolean;
   setAutoplay: (on: boolean) => void;
+  depth: number;
+  setDepth: (depth: number) => void;
+  timeoutSeconds: number;
+  setTimeoutSeconds: (seconds: number) => void;
 }
 
 export function useChessGame(): ChessGameState {
@@ -68,6 +72,14 @@ export function useChessGame(): ChessGameState {
   const [whiteBackend, setWhiteBackendState] = useState<Backend>(BACKENDS[0]);
   const [blackBackend, setBlackBackendState] = useState<Backend>(BACKENDS[1] ?? BACKENDS[0]);
   const [autoplay, setAutoplayState] = useState(false);
+  const [depth, setDepth] = useState(20);
+  const [timeoutSeconds, setTimeoutSeconds] = useState(2);
+
+  // Refs so the computer-move effect reads current values without re-triggering
+  const depthRef = useRef(depth);
+  const timeoutSecondsRef = useRef(timeoutSeconds);
+  depthRef.current = depth;
+  timeoutSecondsRef.current = timeoutSeconds;
 
   // Track position history for threefold repetition detection
   const positionHistory = useRef<Map<string, number>>(
@@ -286,7 +298,7 @@ export function useChessGame(): ChessGameState {
       delayTimerId = setTimeout(resolve, COMPUTER_MOVE_DELAY_MS);
     });
 
-    Promise.all([api.submitBestMove(moveBackendUrl, fen, abortController.signal), minDelay])
+    Promise.all([api.submitBestMove(moveBackendUrl, fen, depthRef.current, timeoutSecondsRef.current * 1000, abortController.signal), minDelay])
       .then(([response]) => {
         if (abortController.signal.aborted) return;
 
@@ -363,5 +375,9 @@ export function useChessGame(): ChessGameState {
     setBlackBackend,
     autoplay,
     setAutoplay,
+    depth,
+    setDepth,
+    timeoutSeconds,
+    setTimeoutSeconds,
   };
 }

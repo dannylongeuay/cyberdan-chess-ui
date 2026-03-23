@@ -40,6 +40,10 @@ function App() {
     setBlackBackend,
     autoplay,
     setAutoplay,
+    depth,
+    setDepth,
+    timeoutSeconds,
+    setTimeoutSeconds,
   } = useChessGame();
 
   const showEvalBar = gameMode !== 'pvp' && engineEval != null;
@@ -98,6 +102,10 @@ function App() {
             onBlackBackendChange={setBlackBackend}
             autoplay={autoplay}
             onAutoplayChange={setAutoplay}
+            depth={depth}
+            timeoutSeconds={timeoutSeconds}
+            onDepthChange={setDepth}
+            onTimeoutChange={setTimeoutSeconds}
           />
         </div>
       </div>

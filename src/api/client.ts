@@ -34,7 +34,7 @@ export const api = {
     return apiFetch<SubmitMoveResponse>(baseUrl, '/submitmove', { fen, move }, signal);
   },
 
-  submitBestMove(baseUrl: string, fen: string, signal?: AbortSignal): Promise<SubmitBestMoveResponse> {
-    return apiFetch<SubmitBestMoveResponse>(baseUrl, '/submitbestmove', { fen, depth: 24, timeout_ms: 3500 }, signal);
+  submitBestMove(baseUrl: string, fen: string, depth: number, timeoutMs: number, signal?: AbortSignal): Promise<SubmitBestMoveResponse> {
+    return apiFetch<SubmitBestMoveResponse>(baseUrl, '/submitbestmove', { fen, depth, timeout_ms: timeoutMs }, signal);
   },
 };

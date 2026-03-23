@@ -41,6 +41,10 @@ interface GameControlsProps {
   onBlackBackendChange: (backend: Backend) => void;
   autoplay: boolean;
   onAutoplayChange: (on: boolean) => void;
+  depth: number;
+  timeoutSeconds: number;
+  onDepthChange: (depth: number) => void;
+  onTimeoutChange: (seconds: number) => void;
 }
 
 const modeItems: { key: string; label: string; value: GameMode }[] = [
@@ -72,6 +76,10 @@ export default function GameControls({
   onBlackBackendChange,
   autoplay,
   onAutoplayChange,
+  depth,
+  timeoutSeconds,
+  onDepthChange,
+  onTimeoutChange,
 }: GameControlsProps) {
   const bItems = backendItems(backends);
 
@@ -136,6 +144,35 @@ export default function GameControls({
         >
           Autoplay {autoplay ? 'On' : 'Off'}
         </button>
+      )}
+
+      {gameMode !== 'pvp' && (
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-sm text-gray-400">
+            Depth
+            <select
+              value={depth}
+              onChange={(e) => onDepthChange(Number(e.target.value))}
+              className="bg-gray-800 text-gray-200 text-sm rounded px-2 py-1 border border-gray-700 cursor-pointer"
+            >
+              {[5, 10, 15, 20, 25].map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-gray-400">
+            Timeout
+            <select
+              value={timeoutSeconds}
+              onChange={(e) => onTimeoutChange(Number(e.target.value))}
+              className="bg-gray-800 text-gray-200 text-sm rounded px-2 py-1 border border-gray-700 cursor-pointer"
+            >
+              {[1, 2, 3, 4, 5].map((s) => (
+                <option key={s} value={s}>{s}s</option>
+              ))}
+            </select>
+          </label>
+        </div>
       )}
     </div>
   );
