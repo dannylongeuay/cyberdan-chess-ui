@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useMemo, type PointerEvent as ReactPointerEvent } from 'react';
+import { useRef, useState, useCallback, useEffect, useMemo, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Board as BoardType, PieceData, SquareCoord } from '../types/chess';
 import type { ValidMove } from '../api/types';
 import { coordToAlgebraic } from '../utils/squares';
@@ -44,6 +44,8 @@ export default function Board({
     ghostEl: HTMLImageElement | null;
     pointerId: number;
   } | null>(null);
+  // Mirrors dragState.current.from while dragging, so render can highlight the source square
+  const [dragSource, setDragSource] = useState<SquareCoord | null>(null);
 
   const indices = flipped ? FLIPPED_INDICES : NORMAL_INDICES;
 
@@ -78,6 +80,7 @@ export default function Board({
       ds.ghostEl.remove();
     }
     dragState.current = null;
+    setDragSource(null);
   }, []);
 
   const handlePointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
@@ -111,6 +114,7 @@ export default function Board({
 
     if (!ds.isDragging && Math.abs(dx) + Math.abs(dy) > DRAG_THRESHOLD) {
       ds.isDragging = true;
+      setDragSource(ds.from);
       const boardEl = boardRef.current;
       if (!boardEl) return;
       // Create ghost element
@@ -171,9 +175,9 @@ export default function Board({
               selectedSquare.row === r &&
               selectedSquare.col === c;
             const isDragSource =
-              dragState.current?.isDragging === true &&
-              dragState.current.from.row === r &&
-              dragState.current.from.col === c;
+              dragSource !== null &&
+              dragSource.row === r &&
+              dragSource.col === c;
 
             return (
               <Square
