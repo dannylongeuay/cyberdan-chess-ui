@@ -78,8 +78,10 @@ export function useChessGame(): ChessGameState {
   // Refs so the computer-move effect reads current values without re-triggering
   const depthRef = useRef(depth);
   const timeoutSecondsRef = useRef(timeoutSeconds);
-  depthRef.current = depth;
-  timeoutSecondsRef.current = timeoutSeconds;
+  useEffect(() => {
+    depthRef.current = depth;
+    timeoutSecondsRef.current = timeoutSeconds;
+  }, [depth, timeoutSeconds]);
 
   // Track position history for threefold repetition detection
   const positionHistory = useRef<Map<string, number>>(
@@ -290,6 +292,8 @@ export function useChessGame(): ChessGameState {
       : backend.url;
 
     const abortController = new AbortController();
+    // Thinking state mirrors the engine request started by this effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsComputerThinking(true);
     setError(null);
 
